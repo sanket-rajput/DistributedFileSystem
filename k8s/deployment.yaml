@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fileshare-backend
+  labels:
+    app: fileshare-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: fileshare-backend
+  template:
+    metadata:
+      labels:
+        app: fileshare-backend
+    spec:
+      containers:
+        - name: fileshare-backend
+          image: ghcr.io/fileshare/distributed-file-sharing:latest
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: fileshare-config
+            - secretRef:
+                name: fileshare-secrets
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1024Mi"
+              cpu: "1000m"

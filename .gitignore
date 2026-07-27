@@ -1,0 +1,92 @@
+# =========================
+# Environment Variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Java / Spring Boot
+# =========================
+target/
+build/
+out/
+bin/
+
+# Compiled class files
+*.class
+
+# Packaged files
+*.jar
+*.war
+*.ear
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+
+# Gradle
+.gradle/
+gradle-app.setting
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# Eclipse
+.metadata/
+
+# VS Code
+.history/
+
+# Logs
+logs/
+*.log
+hs_err_pid*
+replay_pid*
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.swp
+
+# Spring Boot
+spring.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Test Reports
+surefire-reports/
+failsafe-reports/
+
+# Coverage
+coverage/
+jacoco.exec
+/site/
+
+# AWS Keys
+*.pem
+
+# Docker
+docker-data/
+docker-volumes/
+
+# IntelliJ
+.idea_modules/
+
+# Lombok
+.lombok/

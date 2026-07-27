@@ -1,0 +1,38 @@
+# Build outputs
+target/
+build/
+out/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Git and IDE metadata
+.git/
+.gitignore
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Infrastructure and Deployment scripts
+deploy/
+k8s/
+prometheus/
+grafana/
+nginx/
+docker-compose*.yml
+
+# Documentation
+*.md
+LICENSE
+
+# Temporary files and logs
+tmp/
+temp/
+*.tmp
+*.log
+surefire-reports/
+failsafe-reports/

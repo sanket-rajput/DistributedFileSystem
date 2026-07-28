@@ -55,6 +55,35 @@ Access endpoints:
 
 ---
 
+## ⚡ Performance & Scale Validation
+
+Production benchmarks are defined in [/loadtest](file:///d:/3rd/ace/sem%207/project/DisfileSys/loadtest) using k6 and Node.js targeting `https://fileshare.sanketrajput.live`.
+
+### Measured Benchmarks (AWS EC2 t3.medium)
+*(Metrics will be populated from actual k6 outputs after benchmark execution)*
+
+| Metric Category | p50 (Median) | p95 | p99 | Target / Threshold |
+|---|---|---|---|---|
+| **User Authentication / Login** | `[Pending]` | `[Pending]` | `[Pending]` | `< 1500 ms` |
+| **Multipart File Upload** | `[Pending]` | `[Pending]` | `[Pending]` | `< 3000 ms` |
+| **File List Retrieval** | `[Pending]` | `[Pending]` | `[Pending]` | `< 1000 ms` |
+| **File Search (JPA Spec)** | `[Pending]` | `[Pending]` | `[Pending]` | `< 1000 ms` |
+| **Metadata GET (Cache Miss)** | `[Pending]` | `[Pending]` | `[Pending]` | DB Query + Redis Warmup |
+| **Metadata GET (Cache Hit)** | `[Pending]` | `[Pending]` | `[Pending]` | Direct Redis Cache (< 300 ms) |
+| **File Deletion** | `[Pending]` | `[Pending]` | `[Pending]` | Cleanup per Iteration |
+| **Kafka Event Burst** | `[Pending] events/s` | `[Pending]` | `[Pending]` | Target 10,000+ Burst Events |
+| **Peak Concurrent Users** | `[Pending] VUs` | — | — | Target 300 VUs |
+| **Request Failure Rate** | `[Pending] %` | — | — | `< 5.0 %` |
+
+For full load test scripts, instructions, and results logging:
+- See [loadtest/README.md](file:///d:/3rd/ace/sem%207/project/DisfileSys/loadtest/README.md) for running benchmarks (`k6 run loadtest/auth-and-crud-load.js`).
+- See [loadtest/RESULTS.md](file:///d:/3rd/ace/sem%207/project/DisfileSys/loadtest/RESULTS.md) for raw metric output templates.
+
+---
+
 ## 📑 Detailed Guides
+- **Load Testing Suite**: See [loadtest/README.md](file:///d:/3rd/ace/sem%207/project/DisfileSys/loadtest/README.md) for k6 & seeding scripts.
 - **AWS EC2 & HTTPS Guide**: See [deploy/README.md](file:///d:/3rd/ace/sem%207/project/DisfileSys/deploy/README.md) for step-by-step SSL issuance and EC2 setup.
 - **CI/CD Pipeline**: GitHub Actions workflow in [.github/workflows/ci.yml](file:///d:/3rd/ace/sem%207/project/DisfileSys/.github/workflows/ci.yml).
+
+

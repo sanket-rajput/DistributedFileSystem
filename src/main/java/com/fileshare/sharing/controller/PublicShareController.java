@@ -1,11 +1,11 @@
 package com.fileshare.sharing.controller;
 
+import com.fileshare.common.dto.ApiResponse;
 import com.fileshare.file.service.FileService;
 import com.fileshare.sharing.dto.ShareResponseDto;
 import com.fileshare.sharing.service.SharingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -27,21 +27,25 @@ public class PublicShareController {
     }
 
     @GetMapping("/{token}")
-    @Operation(summary = "Access shared file", description = "Public endpoint to inspect or download a file using its share token.")
-    public ResponseEntity<?> accessSharedFile(
+    @Operation(summary = "Access shared file metadata", description = "Public endpoint to inspect shared file metadata using its share token.")
+    public ResponseEntity<ApiResponse<ShareResponseDto>> accessSharedFileMetadata(@PathVariable("token") String token) {
+        ShareResponseDto shareInfo = sharingService.getShareByToken(token);
+        return ResponseEntity.ok(ApiResponse.success(shareInfo, "Share metadata retrieved successfully"));
+    }
+
+    @GetMapping("/{token}/stream")
+    @Operation(summary = "Stream shared file content", description = "Public endpoint to stream file content for inline viewing or download.")
+    public ResponseEntity<?> streamSharedFileContent(
             @PathVariable("token") String token,
-            @RequestParam(value = "download", defaultValue = "true") boolean download) {
+            @RequestParam(value = "inline", defaultValue = "true") boolean inline) {
 
-        if (!download) {
-            ShareResponseDto shareInfo = sharingService.getShareByToken(token);
-            return ResponseEntity.ok(shareInfo);
-        }
+        FileService.FileDownloadResult result = sharingService.streamSharedFile(token, inline);
 
-        FileService.FileDownloadResult result = sharingService.downloadSharedFile(token);
+        String disposition = inline ? "inline" : "attachment";
 
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(result.contentType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + result.filename() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition + "; filename=\"" + result.filename() + "\"")
                 .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(result.sizeBytes()))
                 .body(result.resource());
     }

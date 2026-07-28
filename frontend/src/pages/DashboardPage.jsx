@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Header from '../components/layout/Header';
 import Breadcrumbs from '../components/common/Breadcrumbs';
 import FileGrid from '../components/file/FileGrid';
+import FileViewer from '../components/file/FileViewer';
 import CreateFolderModal from '../components/file/CreateFolderModal';
 import FileUploadModal from '../components/file/FileUploadModal';
 import VersionHistoryPanel from '../components/file/VersionHistoryPanel';
@@ -11,7 +12,7 @@ import ConfirmModal from '../components/common/ConfirmModal';
 import { folderApi } from '../api/folderApi';
 import { fileApi } from '../api/fileApi';
 
-import { FolderPlus, UploadCloud, LayoutGrid, List } from 'lucide-react';
+import { FolderPlus, UploadCloud, LayoutGrid, List, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function DashboardPage() {
@@ -22,14 +23,15 @@ export default function DashboardPage() {
   const [viewMode, setViewMode] = useState('grid');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Modals
+  // Modals & Panels
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [showUploadFile, setShowUploadFile] = useState(false);
   const [selectedFileForShare, setSelectedFileForShare] = useState(null);
   const [selectedFileForVersions, setSelectedFileForVersions] = useState(null);
+  const [previewFile, setPreviewFile] = useState(null);
 
   // Deletion Confirmation
-  const [deleteTarget, setDeleteTarget] = useState(null); // { type: 'file' | 'folder', data }
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const currentFolderId = currentFolderStack.length > 0
     ? currentFolderStack[currentFolderStack.length - 1].id
@@ -189,7 +191,28 @@ export default function DashboardPage() {
           onFileShare={(file) => setSelectedFileForShare(file)}
           onFileVersions={(file) => setSelectedFileForVersions(file)}
           onFileDelete={(file) => setDeleteTarget({ type: 'file', data: file })}
+          onFilePreview={(file) => setPreviewFile(file)}
         />
+      )}
+
+      {/* Preview Modal for Authenticated Owner */}
+      {previewFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal/50 backdrop-blur-xs animate-fadeIn">
+          <div className="w-full max-w-4xl max-h-[90vh] flex flex-col relative">
+            <button
+              onClick={() => setPreviewFile(null)}
+              className="absolute -top-3 -right-3 z-10 p-2 bg-base rounded-full shadow-card text-charcoal hover:bg-surface border border-surface"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <FileViewer
+              file={previewFile}
+              streamUrl={`/api/v1/files/${previewFile.id}/download`}
+              permission="DOWNLOAD"
+              onDownload={() => handleFileDownload(previewFile)}
+            />
+          </div>
+        </div>
       )}
 
       {/* Modals & Slide-overs */}

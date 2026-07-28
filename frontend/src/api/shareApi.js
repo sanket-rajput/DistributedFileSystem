@@ -1,8 +1,15 @@
 import api from './client';
 
+const baseURL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+
 export const shareApi = {
   createShare: async (fileId, expiresAt = null, permission = 'DOWNLOAD') => {
     const response = await api.post(`/files/${fileId}/share`, { expiresAt, permission });
+    return response.data;
+  },
+
+  getShareForFile: async (fileId) => {
+    const response = await api.get(`/files/${fileId}/share`);
     return response.data;
   },
 
@@ -11,8 +18,13 @@ export const shareApi = {
     return response.data;
   },
 
+  getPublicStreamUrl: (token, inline = true) => {
+    return `${baseURL}/share/${token}/stream?inline=${inline}`;
+  },
+
   downloadSharedFile: async (token, filename) => {
-    const response = await api.get(`/share/${token}`, {
+    const streamUrl = `${baseURL}/share/${token}/stream?inline=false`;
+    const response = await api.get(`/share/${token}/stream?inline=false`, {
       responseType: 'blob',
     });
 

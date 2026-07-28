@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Share2, X, Copy, Check, Eye, Download, ShieldAlert, Calendar } from 'lucide-react';
 import { shareApi } from '../../api/shareApi';
 import toast from 'react-hot-toast';
@@ -10,7 +10,26 @@ export default function ShareModal({ file, isOpen, onClose }) {
   const [activeShare, setActiveShare] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  if (!isOpen || !file) return null;
+  useEffect(() => {
+    if (file && isOpen) {
+      checkExistingShare();
+    } else {
+      setActiveShare(null);
+    }
+  }, [file, isOpen]);
+
+  const checkExistingShare = async () => {
+    try {
+      const res = await shareApi.getShareForFile(file.id);
+      if (res.data) {
+        setActiveShare(res.data);
+        setPermission(res.data.permission || 'DOWNLOAD');
+      }
+    } catch (err) {
+      // No active share found, user can generate a new one
+      setActiveShare(null);
+    }
+  };
 
   const handleCreateShare = async (e) => {
     e.preventDefault();
@@ -25,7 +44,7 @@ export default function ShareModal({ file, isOpen, onClose }) {
       const res = await shareApi.createShare(file.id, formattedExpiry, permission);
       const shareData = res.data;
       setActiveShare(shareData);
-      toast.success('Public share link generated!');
+      toast.success('Public share link ready!');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to generate share link');
     } finally {
@@ -35,10 +54,28 @@ export default function ShareModal({ file, isOpen, onClose }) {
 
   const handleCopy = (token) => {
     const publicUrl = `${window.location.origin}/share/${token}`;
-    navigator.clipboard.writeText(publicUrl);
-    setCopied(true);
-    toast.success('Link copied to clipboard!');
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(publicUrl);
+      } else {
+        // Fallback for HTTP / non-secure contexts (e.g. EC2 IP without HTTPS)
+        const textArea = document.createElement('textarea');
+        textArea.value = publicUrl;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        textArea.remove();
+      }
+      setCopied(true);
+      toast.success('Link copied to clipboard!');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      toast.error('Failed to copy link to clipboard');
+    }
   };
 
   const handleRevoke = async () => {
@@ -52,6 +89,8 @@ export default function ShareModal({ file, isOpen, onClose }) {
     }
   };
 
+  if (!isOpen || !file) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal/40 backdrop-blur-xs animate-fadeIn">
       <div className="bg-base rounded-2xl max-w-lg w-full p-6 shadow-card border border-surface space-y-6">
@@ -62,7 +101,7 @@ export default function ShareModal({ file, isOpen, onClose }) {
             </div>
             <div>
               <h3 className="font-bold text-lg text-charcoal">Share File</h3>
-              <p className="text-xs text-muted">Generate secure public link for "{file.originalFilename}"</p>
+              <p className="text-xs text-muted">Generate or manage secure public link for "{file.originalFilename}"</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1 text-muted hover:text-charcoal rounded-lg">
@@ -149,8 +188,9 @@ export default function ShareModal({ file, isOpen, onClose }) {
                   className="w-full bg-base text-xs px-3 py-2 rounded-xl border border-surface text-charcoal font-mono truncate"
                 />
                 <button
+                  type="button"
                   onClick={() => handleCopy(activeShare.token)}
-                  className="px-3 py-2 bg-accent-blue text-white rounded-xl text-xs font-semibold hover:bg-accent-blue/90 shrink-0 flex items-center space-x-1"
+                  className="px-3 py-2 bg-accent-blue text-white rounded-xl text-xs font-semibold hover:bg-accent-blue/90 shrink-0 flex items-center space-x-1 shadow-soft"
                 >
                   {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copied ? 'Copied' : 'Copy'}</span>

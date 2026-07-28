@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.InputStream;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -33,10 +34,10 @@ public class SharingServiceImpl implements SharingService {
     private final EventPublisherService eventPublisherService;
 
     public SharingServiceImpl(ShareRepository shareRepository,
-                              FileMetadataRepository fileMetadataRepository,
-                              FileStorageService fileStorageService,
-                              ShareMapper shareMapper,
-                              EventPublisherService eventPublisherService) {
+                               FileMetadataRepository fileMetadataRepository,
+                               FileStorageService fileStorageService,
+                               ShareMapper shareMapper,
+                               EventPublisherService eventPublisherService) {
         this.shareRepository = shareRepository;
         this.fileMetadataRepository = fileMetadataRepository;
         this.fileStorageService = fileStorageService;
@@ -56,6 +57,23 @@ public class SharingServiceImpl implements SharingService {
 
         if (request.getExpiresAt() != null && request.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new BadRequestException("Expiration time cannot be in the past");
+        }
+
+        // Check if active (unrevoked & unexpired) share already exists for this file
+        Optional<Share> existingShareOpt = shareRepository.findFirstByFileMetadataIdAndRevokedFalseOrderByCreatedAtDesc(fileId);
+
+        if (existingShareOpt.isPresent()) {
+            Share existingShare = existingShareOpt.get();
+            if (!existingShare.isExpired()) {
+                // Update permission & expiry if changed, retaining stable token
+                existingShare.setPermission(request.getPermission());
+                existingShare.setExpiresAt(request.getExpiresAt());
+                Share updatedShare = shareRepository.save(existingShare);
+
+                ShareResponseDto dto = shareMapper.toDto(updatedShare);
+                dto.setShareUrl("/api/v1/share/" + updatedShare.getToken());
+                return dto;
+            }
         }
 
         String token = UUID.randomUUID().toString().replace("-", "");
@@ -92,11 +110,38 @@ public class SharingServiceImpl implements SharingService {
 
     @Override
     @Transactional(readOnly = true)
+    public ShareResponseDto getShareForFile(UUID fileId, UUID ownerId) {
+        FileMetadata fileMetadata = fileMetadataRepository.findById(fileId)
+                .orElseThrow(() -> new ResourceNotFoundException("File", "id", fileId));
+
+        if (!fileMetadata.getOwner().getId().equals(ownerId)) {
+            throw new AccessDeniedException("You do not have permission to view shares for this file");
+        }
+
+        Optional<Share> existingShareOpt = shareRepository.findFirstByFileMetadataIdAndRevokedFalseOrderByCreatedAtDesc(fileId);
+        if (existingShareOpt.isEmpty() || existingShareOpt.get().isExpired()) {
+            throw new ResourceNotFoundException("No active share link found for file", "fileId", fileId);
+        }
+
+        Share share = existingShareOpt.get();
+        ShareResponseDto dto = shareMapper.toDto(share);
+        dto.setShareUrl("/api/v1/share/" + share.getToken());
+        return dto;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public FileService.FileDownloadResult downloadSharedFile(String token) {
+        return streamSharedFile(token, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FileService.FileDownloadResult streamSharedFile(String token, boolean inline) {
         Share share = validateAndGetShare(token);
 
-        if (share.getPermission() != SharePermission.DOWNLOAD && share.getPermission() != SharePermission.VIEW) {
-            throw new AccessDeniedException("The share link does not grant download access");
+        if (!inline && share.getPermission() == SharePermission.VIEW) {
+            throw new AccessDeniedException("Downloading is disabled for this view-only share link");
         }
 
         FileMetadata metadata = share.getFileMetadata();

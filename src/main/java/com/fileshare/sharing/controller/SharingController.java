@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,7 +24,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/files/{fileId}/share")
-@Tag(name = "File Sharing", description = "Endpoints for creating and revoking shareable public links")
+@Tag(name = "File Sharing", description = "Endpoints for creating, fetching, and revoking shareable public links")
 @SecurityRequirement(name = "bearerAuth")
 public class SharingController {
 
@@ -34,7 +35,7 @@ public class SharingController {
     }
 
     @PostMapping
-    @Operation(summary = "Generate shareable link", description = "Generates a unique public token/link with optional expiry and permissions.")
+    @Operation(summary = "Generate shareable link", description = "Generates or returns a stable unique public token/link for a file with optional expiry and permissions.")
     public ResponseEntity<ApiResponse<ShareResponseDto>> createShare(
             @PathVariable("fileId") UUID fileId,
             @Valid @RequestBody CreateShareRequest request,
@@ -43,6 +44,16 @@ public class SharingController {
         ShareResponseDto response = sharingService.createShare(fileId, request, userPrincipal.getId());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created(response, "Public share link generated successfully"));
+    }
+
+    @GetMapping
+    @Operation(summary = "Get active shareable link", description = "Returns existing active share link for a file if present.")
+    public ResponseEntity<ApiResponse<ShareResponseDto>> getShareForFile(
+            @PathVariable("fileId") UUID fileId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+
+        ShareResponseDto response = sharingService.getShareForFile(fileId, userPrincipal.getId());
+        return ResponseEntity.ok(ApiResponse.success(response, "Active share link retrieved successfully"));
     }
 
     @DeleteMapping("/{shareId}")

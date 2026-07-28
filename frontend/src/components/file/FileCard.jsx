@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Image, Video, Music, Archive, File, MoreVertical, Download, Share2, History, Trash2, CopyCheck } from 'lucide-react';
+import { FileText, Image, Video, Music, Archive, File, MoreVertical, Download, Share2, History, Trash2, Eye } from 'lucide-react';
 import Badge from '../common/Badge';
 
 export function formatBytes(bytes, decimals = 1) {
@@ -33,7 +33,7 @@ export function getFileIcon(contentType = '', filename = '') {
   return <File className="w-5 h-5 text-muted" />;
 }
 
-export default function FileCard({ file, onDownload, onShare, onVersions, onDelete, viewMode = 'grid' }) {
+export default function FileCard({ file, onDownload, onShare, onVersions, onDelete, onPreview, viewMode = 'grid' }) {
   const [showMenu, setShowMenu] = useState(false);
 
   if (viewMode === 'list') {
@@ -43,8 +43,8 @@ export default function FileCard({ file, onDownload, onShare, onVersions, onDele
           <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center">
             {getFileIcon(file.contentType, file.originalFilename)}
           </div>
-          <div className="min-w-0">
-            <span className="font-semibold text-sm text-charcoal truncate block" title={file.originalFilename}>
+          <div className="min-w-0 cursor-pointer" onClick={() => onPreview && onPreview(file)}>
+            <span className="font-semibold text-sm text-charcoal truncate block hover:text-accent-blue" title={file.originalFilename}>
               {file.originalFilename}
             </span>
             {file.isDeduplicated && <Badge type="duplicate" />}
@@ -63,6 +63,15 @@ export default function FileCard({ file, onDownload, onShare, onVersions, onDele
             </button>
             {showMenu && (
               <div className="absolute right-0 mt-1 w-44 bg-base rounded-xl shadow-card border border-surface py-1 z-30 text-left">
+                {onPreview && (
+                  <button
+                    onClick={() => { setShowMenu(false); onPreview(file); }}
+                    className="w-full px-3 py-1.5 text-xs text-charcoal hover:bg-surface flex items-center space-x-2"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-accent-blue" />
+                    <span>Preview</span>
+                  </button>
+                )}
                 <button
                   onClick={() => { setShowMenu(false); onDownload(file); }}
                   className="w-full px-3 py-1.5 text-xs text-charcoal hover:bg-surface flex items-center space-x-2"
@@ -103,7 +112,10 @@ export default function FileCard({ file, onDownload, onShare, onVersions, onDele
   return (
     <div className="group relative bg-base hover:bg-surface/30 p-4 rounded-2xl border border-surface shadow-soft hover:shadow-card transition-all duration-200 flex flex-col justify-between">
       <div className="flex items-start justify-between">
-        <div className="w-10 h-10 rounded-xl bg-surface/60 flex items-center justify-center">
+        <div
+          className="w-10 h-10 rounded-xl bg-surface/60 flex items-center justify-center cursor-pointer"
+          onClick={() => onPreview && onPreview(file)}
+        >
           {getFileIcon(file.contentType, file.originalFilename)}
         </div>
         <div className="relative">
@@ -115,6 +127,15 @@ export default function FileCard({ file, onDownload, onShare, onVersions, onDele
           </button>
           {showMenu && (
             <div className="absolute right-0 mt-1 w-44 bg-base rounded-xl shadow-card border border-surface py-1 z-30">
+              {onPreview && (
+                <button
+                  onClick={() => { setShowMenu(false); onPreview(file); }}
+                  className="w-full px-3 py-1.5 text-xs text-charcoal hover:bg-surface flex items-center space-x-2"
+                >
+                  <Eye className="w-3.5 h-3.5 text-accent-blue" />
+                  <span>Preview</span>
+                </button>
+              )}
               <button
                 onClick={() => { setShowMenu(false); onDownload(file); }}
                 className="w-full px-3 py-1.5 text-xs text-charcoal hover:bg-surface flex items-center space-x-2"
@@ -150,7 +171,11 @@ export default function FileCard({ file, onDownload, onShare, onVersions, onDele
       </div>
 
       <div className="mt-4 space-y-2">
-        <h4 className="font-semibold text-sm text-charcoal truncate" title={file.originalFilename}>
+        <h4
+          className="font-semibold text-sm text-charcoal truncate cursor-pointer hover:text-accent-blue"
+          title={file.originalFilename}
+          onClick={() => onPreview && onPreview(file)}
+        >
           {file.originalFilename}
         </h4>
         <div className="flex items-center justify-between text-[11px] text-muted">

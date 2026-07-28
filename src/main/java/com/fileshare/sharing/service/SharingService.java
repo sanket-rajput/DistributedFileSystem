@@ -12,7 +12,11 @@ public interface SharingService {
 
     ShareResponseDto getShareByToken(String token);
 
+    ShareResponseDto getShareForFile(UUID fileId, UUID ownerId);
+
     FileService.FileDownloadResult downloadSharedFile(String token);
+
+    FileService.FileDownloadResult streamSharedFile(String token, boolean inline);
 
     void revokeShare(UUID fileId, UUID shareId, UUID ownerId);
 }

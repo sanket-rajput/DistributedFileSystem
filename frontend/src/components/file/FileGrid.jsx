@@ -13,7 +13,8 @@ export default function FileGrid({
   onFileDownload,
   onFileShare,
   onFileVersions,
-  onFileDelete
+  onFileDelete,
+  onFilePreview
 }) {
   const isEmpty = folders.length === 0 && files.length === 0;
 
@@ -64,6 +65,7 @@ export default function FileGrid({
                 onShare={onFileShare}
                 onVersions={onFileVersions}
                 onDelete={onFileDelete}
+                onPreview={onFilePreview}
               />
             ))}
           </tbody>
@@ -105,6 +107,7 @@ export default function FileGrid({
                 onShare={onFileShare}
                 onVersions={onFileVersions}
                 onDelete={onFileDelete}
+                onPreview={onFilePreview}
               />
             ))}
           </div>

@@ -1,91 +1,108 @@
-# AWS EC2 Deployment Guide — Distributed File Sharing Platform
+# AWS EC2 Deployment & HTTPS Guide — Distributed File Sharing Platform
 
-Step-by-step instructions for deploying the full-stack platform (React Frontend + Spring Boot Backend + Infrastructure) onto a single AWS EC2 instance using Docker Compose.
+Production setup guide for `fileshare.sanketrajput.live` with automated Let's Encrypt SSL certificates (Certbot), Nginx reverse proxy, and Docker Compose orchestration.
 
 ---
 
-## 📋 Architecture & Port Layout
-
-The platform runs as containerized micro-services orchestrated by Docker Compose:
+## 📋 Production Architecture & Endpoints
 
 ```
 [ Web Browser ]
       │
-      ├──(Port 80 HTTP)──► Nginx Container (Frontend SPA)
-      │                         │
-      │                  (Reverse Proxy /api/*)
-      │                         │
-      │                         ▼
-      │                   Spring Boot App Container (Port 8080)
-      │                         │
-      │        ┌────────────────┼────────────────┐
-      │        ▼                ▼                ▼
-      │   PostgreSQL (Render) MinIO (S3)   Redis (Cache)   Kafka (Events)
+      ├──(Port 80 HTTP Redirect / ACME)──► Nginx Container (Port 80)
+      │                                         │ (301 Redirect to HTTPS)
+      ├──(Port 443 HTTPS SSL)───────────► Nginx Container (Port 443)
+      │                                         │
+      │                                  (Reverse Proxy /api/*)
+      │                                         │
+      │                                         ▼
+      │                                Spring Boot App Container (Port 8080)
+      │                                         │
+      │                  ┌──────────────────────┼──────────────────────┐
+      │                  ▼                      ▼                      ▼
+      │             PostgreSQL (Render)    MinIO (S3 Storage)    Redis (Cache)
 ```
 
-### Why Nginx Reverse Proxy?
-The Nginx frontend container serves static React assets and reverse-proxies `/api/*` requests directly to `http://app:8080` over the internal Docker network. This provides two key advantages:
-1. **No Hardcoded Public IP**: The frontend build uses relative `/api/v1` endpoints, eliminating the need to bake the EC2 Elastic IP into JavaScript bundles at build time.
-2. **Zero CORS Pre-flight Overhead**: Requests share the same origin (`http://<ec2-ip>:80`), avoiding cross-origin security restrictions.
+- **Production Domain**: `https://fileshare.sanketrajput.live`
+- **HTTP Auto-Redirect**: All plain HTTP requests on port 80 automatically 301-redirect to `https://fileshare.sanketrajput.live`.
 
 ---
 
 ## 🔒 Security Group Configuration (Inbound Rules)
 
+Ensure the following inbound ports are open in AWS EC2 Security Group:
+
 | Type | Port Range | Source | Purpose |
 | :--- | :--- | :--- | :--- |
 | **SSH** | `22` | `My IP` | Secure SSH administration |
-| **HTTP** | `80` | `0.0.0.0/0` | Public Web Frontend (React SPA) |
-| **Custom TCP** | `8080` | `0.0.0.0/0` | Spring Boot API & Swagger UI |
-| **Custom TCP** | `9001` | `My IP` | MinIO Web Console (Admin only) |
-
-> [!NOTE]
-> Internal ports `9000` (MinIO S3 API), `6379` (Redis), and `9092` (Kafka) are bound to `127.0.0.1` loopback inside `docker-compose.yml` to prevent public internet exposure.
+| **HTTP** | `80` | `0.0.0.0/0` | ACME Challenge Verification & HTTP -> HTTPS Redirect |
+| **HTTPS** | `443` | `0.0.0.0/0` | Secure Web Frontend (`https://fileshare.sanketrajput.live`) |
+| **Custom TCP** | `8080` | `0.0.0.0/0` | Direct Spring Boot API & Swagger UI |
+| **Custom TCP** | `9001` | `My IP` | MinIO Web Console (Admin access only) |
 
 ---
 
-## 🚀 Step-by-Step Deployment Procedure
+## 🔑 One-Time SSL Certificate Issuance (Let's Encrypt)
 
-### Step 1: Connect to EC2 Instance
+Before issuing the certificate, ensure DNS A-Record for **`fileshare.sanketrajput.live`** points directly to your EC2 Elastic IP address.
+
+### Step 1: Launch Nginx Service (HTTP Port 80)
 ```bash
-ssh -i /path/to/your-key.pem ubuntu@<YOUR_ELASTIC_IP>
+docker compose up -d frontend app minio redis kafka
 ```
 
-### Step 2: Run Automated Setup Script
+### Step 2: Issue Certificate via Certbot Webroot
+Run the initial certificate request command:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/your-username/DisfileSys/main/deploy/setup-ec2.sh -o setup-ec2.sh
-chmod +x setup-ec2.sh
-./setup-ec2.sh https://github.com/your-username/DisfileSys.git
+docker compose run --rm certbot certonly \
+  --webroot \
+  -w /var/www/certbot \
+  -d fileshare.sanketrajput.live \
+  --email sanket@example.com \
+  --agree-tos \
+  --no-eff-email
 ```
 
-### Step 3: Configure Production `.env`
+### Step 3: Reload Nginx to Activate SSL (Port 443)
+Once the certificate files are created under `/etc/letsencrypt/live/fileshare.sanketrajput.live/`:
 ```bash
-cd DisfileSys
-cp .env.example .env
-nano .env
+docker compose exec frontend nginx -s reload
 ```
 
-Set real production values:
-1. `POSTGRES_HOST`, `POSTGRES_USER`, `POSTGRES_PASSWORD` — Render database credentials.
-2. `KAFKA_HOST` — Set to your EC2 Elastic IP.
-3. `JWT_SECRET` — Generate a secure 256-bit key: `openssl rand -hex 32`.
+---
 
-### Step 4: Build & Launch Full Stack
+## 🔄 Automatic SSL Certificate Renewal
+
+The `certbot` container service defined in `docker-compose.yml` automatically checks for certificate renewal every 12 hours:
+
+```yaml
+certbot:
+  image: certbot/certbot:latest
+  container_name: fileshare-certbot
+  restart: always
+  volumes:
+    - certbot_www:/var/www/certbot
+    - certbot_certs:/etc/letsencrypt
+  entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+```
+
+To manually test certificate renewal at any time:
 ```bash
+docker compose run --rm certbot renew --dry-run
+```
+
+---
+
+## 🚀 Full Stack Launch & Verification
+
+```bash
+# 1. Start all container services
 docker compose up -d --build
-```
 
-### Step 5: Verify Deployment Health
-Check running containers:
-```bash
+# 2. Check running services
 docker compose ps
-```
 
-Verify backend component health:
-```bash
-curl http://localhost:8080/actuator/health
+# 3. Access Application
+# Web Frontend: https://fileshare.sanketrajput.live
+# API Documentation: https://fileshare.sanketrajput.live/swagger-ui.html (or http://<EC2-IP>:8080/swagger-ui.html)
 ```
-
-Access the application in your browser:
-- **Web App Frontend**: `http://<YOUR_ELASTIC_IP>` (Port 80)
-- **API Swagger UI**: `http://<YOUR_ELASTIC_IP>:8080/swagger-ui.html`

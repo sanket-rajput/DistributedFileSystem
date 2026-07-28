@@ -1,54 +1,52 @@
 services:
   frontend:
-  build:
-    context: ./frontend
-    dockerfile: Dockerfile
-    args:
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
 
-  container_name: fileshare-frontend
+    container_name: fileshare-frontend
+    restart: unless-stopped
 
-  restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
 
-  ports:
-    - "80:80"
-    - "443:443"
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_certs:/etc/letsencrypt:ro
 
-  volumes:
-    - certbot_www:/var/www/certbot
-    - certbot_certs:/etc/letsencrypt:ro
-
-  depends_on:
-    app:
-      condition: service_started
+    depends_on:
+      app:
+        condition: service_started
 
   certbot:
-  image: certbot/certbot:latest
+    image: certbot/certbot:latest
+    container_name: fileshare-certbot
+    restart: unless-stopped
 
-  container_name: fileshare-certbot
-
-  restart: unless-stopped
-
-  command: >
-    sh -c "
-    while :; do
+    command: >
+      sh -c "while :; do
       certbot renew --webroot -w /var/www/certbot;
       sleep 12h;
-    done
-    "
+      done"
 
-  volumes:
-    - certbot_www:/var/www/certbot
-    - certbot_certs:/etc/letsencrypt
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_certs:/etc/letsencrypt
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
+
     container_name: fileshare-app
     restart: always
+
     ports:
       - "${SERVER_PORT:-8080}:8080"
+
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       POSTGRES_HOST: ${POSTGRES_HOST}
@@ -68,6 +66,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+
     depends_on:
       minio:
         condition: service_healthy
@@ -75,6 +74,7 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -86,15 +86,20 @@ services:
     image: minio/minio:RELEASE.2024-05-28T17-19-04Z
     container_name: fileshare-minio
     restart: always
+
     command: server /data --console-address ":9001"
+
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+
     ports:
       - "127.0.0.1:${MINIO_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
+
     volumes:
       - minio_data:/data
+
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
@@ -105,10 +110,13 @@ services:
     image: redis:7-alpine
     container_name: fileshare-redis
     restart: always
+
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+
     volumes:
       - redis_data:/data
+
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -119,25 +127,29 @@ services:
     image: confluentinc/cp-kafka:7.6.0
     container_name: fileshare-kafka
     restart: always
+
     ports:
       - "127.0.0.1:${KAFKA_PORT:-9092}:9092"
+
     environment:
       KAFKA_NODE_ID: 1
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
-      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://${KAFKA_HOST:-localhost}:9092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:29092,PLAINTEXT_HOST://${KAFKA_HOST:-localhost}:9092"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_PROCESS_ROLES: 'broker,controller'
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
-      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092'
-      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
-      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:29093"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_LOG_DIRS: "/tmp/kraft-combined-logs"
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+
     volumes:
       - kafka_data:/var/lib/kafka/data
+
     healthcheck:
       test: ["CMD-SHELL", "nc -z localhost 9092 || exit 1"]
       interval: 5s

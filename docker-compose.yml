@@ -1,4 +1,18 @@
 services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    container_name: fileshare-frontend
+    restart: always
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      app:
+        condition: service_started
+
   app:
     build:
       context: .

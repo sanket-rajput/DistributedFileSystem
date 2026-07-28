@@ -1,189 +1,73 @@
-# Distributed File Sharing Platform — Production-Grade Backend
+# Distributed File Sharing Platform — Full Stack System
 
 [![CI/CD Pipeline](https://img.shields.io/badge/CI%2FCD-passing-brightgreen)](.github/workflows/ci.yml)
 [![Java 21](https://img.shields.io/badge/Java-21-blue.svg)](https://www.oracle.com/java/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.0-green.svg)](https://spring.io/projects/spring-boot)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](Dockerfile)
+[![React](https://img.shields.io/badge/React-18-blue.svg)](frontend/)
+[![Docker](https://img.shields.io/badge/Docker-Compose--Ready-blue.svg)](docker-compose.yml)
 
-Production-grade Spring Boot 3 backend for a Distributed File Sharing Platform. This project features multi-stage Docker packaging, containerized deployment readiness for AWS EC2, JWT authentication, RBAC, nested folder management, streaming MinIO S3 file storage, SHA-256 deduplication, file versioning, public link sharing, Kafka event-driven notifications, Redis metadata caching, JPA Specification search, cross-cutting AOP audit logging, Prometheus/Grafana observability, Testcontainers integration testing, and Kubernetes deployment manifests.
-
----
-
-## 🛠 Tech Stack & Architecture
-
-- **Java 21**, **Spring Boot 3.3.x**, **Spring Security**, **Spring Data JPA**, **Spring MVC**, **Spring AOP**, **Spring Cache**
-- **PostgreSQL 16** (Metadata Store — Render external database)
-- **MinIO** (S3-compatible Object Storage via official Java SDK v8.5.x)
-- **Apache Kafka (KRaft mode)** (Asynchronous Event Streaming)
-- **Redis 7** (Metadata Cache-Aside with 5-min TTL)
-- **Spring Boot Actuator & Micrometer Prometheus** (Metrics & Health Indicators)
-- **Grafana 10.4** (Monitoring Dashboards)
-- **Testcontainers** (Isolated integration tests)
-- **Docker Compose** & **Multi-Stage Dockerfile**
-- **GitHub Actions CI/CD Pipeline**
+Production-grade Distributed File Sharing Platform featuring a Spring Boot 3 backend and a React 18 + Vite + Tailwind CSS frontend packaged for containerized deployment via Docker Compose.
 
 ---
 
-## 📁 Package Structure (`package-by-feature`)
+## 🛠 Architecture Overview
 
 ```
-src/main/java/com/fileshare
-├── DistributedFileSharingApplication.java
-├── auth/            # JWT Token generation, authentication filter, Login & Register endpoints
-├── user/            # User entity, Role (USER, ADMIN), UserRepository, User DTOs & service
-├── folder/          # Folder entity (self-referencing parent), Folder CRUD & ownership rules
-├── file/            # FileMetadata entity (SHA-256 hash), MinIO streaming upload/download, file CRUD
-├── cache/           # Redis CacheManager configuration & 5-minute TTL cache-aside rules
-├── event/           # Kafka producer configuration, topics, & event DTOs (FileUploaded, FileShared, FileDeleted)
-├── notification/    # Kafka listener (@KafkaListener), notification persistence & paginated query endpoint
-├── versioning/      # FileVersion entity, version listing, downloading, and version restoration
-├── sharing/         # Share entity, public token generation, expiration/revocation, public unauthenticated endpoint
-├── search/          # Dynamic combinable search filters using Spring Data JPA Specifications
-├── audit/           # Cross-cutting AOP audit logging (@Auditable aspect) and ADMIN-only log inspection
-├── common/          # GlobalExceptionHandler, standard ApiResponse<T>, custom exceptions
-└── config/          # SecurityConfig, MinioConfig, SwaggerConfig, MetricsConfig
+[ Web Browser ] ──(Port 80)──► Nginx Container (React SPA + /api/* Reverse Proxy)
+                                      │
+                                      ▼
+                        Spring Boot App Container (Port 8080)
+                                      │
+                 ┌────────────────────┼────────────────────┐
+                 ▼                    ▼                    ▼
+          PostgreSQL (Render)    MinIO (S3)           Redis (Cache)
 ```
+
+### Key Architectural Highlights
+- **Nginx Reverse Proxy**: Frontend static assets are served via Nginx on port 80. Nginx proxies `/api/*` requests directly to `http://app:8080` over the internal Docker network, avoiding hardcoded public IP addresses in JavaScript assets and eliminating cross-origin preflight overhead.
+- **Backend Metadata & Storage**: PostgreSQL metadata store (Render), MinIO S3 object storage streaming uploads, Redis metadata cache-aside (<15ms target), and Apache Kafka (KRaft mode) event streaming.
+- **Frontend Design System**: Google/Gemini 4-color accent palette (`#4285F4`, `#EA4335`, `#FBBC05`, `#34A853`) on warm neutral base canvas (`#FFFFFF` & `#F5E6D8`).
 
 ---
 
-## 🐋 Containerized Local & Production Deployment
+## 🚀 Running the Application
 
-### 1. Environment Setup
-Copy the environment configuration template and configure your parameters:
+### Option A: Full Container Stack via Docker Compose (Recommended)
 
-```bash
-cp .env.example .env
-```
-
-Set external database credentials (Render Postgres), MinIO user/password, and generate a 256-bit JWT secret (`openssl rand -hex 32`).
-
-### 2. Single-Command Launch via Docker Compose
-Build the multi-stage Spring Boot application container and launch infrastructure services (MinIO, Redis, Kafka):
-
-```bash
-docker compose up -d --build
-```
-
-- **App API**: `http://localhost:8080`
-- **Swagger UI**: `http://localhost:8080/swagger-ui.html`
-- **MinIO Console**: `http://localhost:9001`
-
----
-
-## 🏥 Actuator Health & Component Readiness Verification
-
-Once containers are started, Spring Boot Actuator provides full component health inspection across all external infrastructure dependencies (PostgreSQL, MinIO, Redis, and Kafka):
-
-```bash
-curl -s http://localhost:8080/actuator/health | jq
-```
-
-### Expected Response:
-```json
-{
-  "status": "UP",
-  "components": {
-    "db": {
-      "status": "UP",
-      "details": {
-        "database": "PostgreSQL",
-        "validationQuery": "isValid()"
-      }
-    },
-    "diskSpace": {
-      "status": "UP"
-    },
-    "ping": {
-      "status": "UP"
-    },
-    "redis": {
-      "status": "UP",
-      "details": {
-        "version": "7.0.15"
-      }
-    }
-  }
-}
-```
-
-A status of `UP` confirms that:
-1. PostgreSQL metadata connection to Render DB is established.
-2. MinIO S3 object storage bucket is accessible.
-3. Redis in-memory cache server is accepting operations.
-4. Kafka KRaft broker cluster is connected for asynchronous event messaging.
-
----
-
-## ☁️ AWS EC2 Deployment Procedure
-
-Instructions for deploying to a single AWS EC2 instance (`t3.medium`, Ubuntu 22.04 LTS):
-
-1. **Provision EC2 & Security Group**:
-   - Open ports `22` (SSH - restricted to your IP), `8080` (App API / Swagger), and `9001` (MinIO Console - restricted).
-   - Internal ports `9000` (MinIO S3), `6379` (Redis), and `9092` (Kafka) are isolated to `127.0.0.1` inside `docker-compose.yml`.
-2. **Execute First-Time Setup Script**:
+1. Copy `.env.example` to `.env` and fill in your parameters:
    ```bash
-   chmod +x deploy/setup-ec2.sh
-   ./deploy/setup-ec2.sh <REPO_URL>
+   cp .env.example .env
    ```
-3. **Configure Production `.env`**:
-   - Set `KAFKA_HOST=<YOUR_EC2_ELASTIC_IP>` and Render DB credentials.
-4. **Deploy**:
+2. Build and launch all containers (Frontend, Backend, MinIO, Redis, Kafka):
    ```bash
    docker compose up -d --build
    ```
+3. Access Web App:
+   - **Frontend App**: `http://localhost` (or `http://<EC2_PUBLIC_IP>`)
+   - **Swagger UI**: `http://localhost:8080/swagger-ui.html`
 
-For detailed step-by-step documentation, see [deploy/README.md](file:///d:/3rd/ace/sem%207/project/DisfileSys/deploy/README.md).
+### Option B: Local Frontend Development (`npm run dev`)
 
----
-
-## 🧪 Testing Strategy
-
-### Unit Tests (Mockito)
-Unit tests execute without external infrastructure dependencies:
-
-```bash
-mvn test
-```
-
-### Integration Tests (Testcontainers)
-Integration tests spin up ephemeral Docker containers for PostgreSQL, Redis, Kafka, and MinIO:
-
-```bash
-mvn verify
-```
-
-Code coverage reports are generated automatically at `target/site/jacoco/index.html`.
+1. Start backend dependencies:
+   ```bash
+   docker compose up -d minio redis kafka
+   mvn spring-boot:run
+   ```
+2. Start frontend dev server:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+   Frontend dev server runs on `http://localhost:3000` with direct API connection to `http://localhost:8080`.
 
 ---
 
-## ⚙️ CI/CD Pipeline
-
-The GitHub Actions workflow defined in [.github/workflows/ci.yml](file:///d:/3rd/ace/sem%207/project/DisfileSys/.github/workflows/ci.yml):
-1. Sets up JDK 21 and Maven cache.
-2. Executes `mvn verify` running unit and Testcontainers integration tests.
-3. Verifies multi-stage `Dockerfile` compilation (`docker build .`).
-4. Generates and uploads JaCoCo code coverage artifacts.
+## 🔒 Security Note on CORS
+`SecurityConfig.java` defines an explicit `CorsConfigurationSource` (`setAllowedOriginPatterns(List.of("*"))`). When deployed behind the Nginx reverse proxy on the same origin (`port 80`), browser CORS preflight checks are bypassed. The permissive CORS configuration remains enabled to support local development (`localhost:3000`) and direct API clients.
 
 ---
 
-## 📊 Observability & Monitoring
-
-### Launch Prometheus & Grafana
-```bash
-docker compose -f docker-compose.monitoring.yml up -d
-```
-
-- **Prometheus**: `http://localhost:9090` (scraping `/actuator/prometheus`)
-- **Grafana**: `http://localhost:3000` (pre-configured dashboard with latency percentiles, throughput, and memory usage)
-
----
-
-## ⚡ Target Performance Specifications
-
-| Performance Metric Target | System Design / Architectural Specification | Mechanism |
-| :--- | :--- | :--- |
-| **5,000+ Files Managed** | Metadata indexing | PostgreSQL indexes (`sha256_hash`, `owner_id`, `folder_id`) |
-| **300+ Concurrent Users** | Stateless scale | JWT Authentication + Spring Async Thread Pool |
-| **10,000+ Kafka Events** | Event streaming | Non-blocking Kafka Producer (`KafkaTemplate.send()`) |
-| **<150ms Metadata Lookup** | High-speed cache | Spring `@Cacheable` Redis Cache-Aside (<15ms cache hit) |
+## 📑 Detailed Guides
+- **AWS EC2 Deployment Guide**: See [deploy/README.md](file:///d:/3rd/ace/sem%207/project/DisfileSys/deploy/README.md) for step-by-step setup instructions.
+- **CI/CD Pipeline**: GitHub Actions workflow in [.github/workflows/ci.yml](file:///d:/3rd/ace/sem%207/project/DisfileSys/.github/workflows/ci.yml) builds unit tests, Testcontainers integration tests, and Docker images.

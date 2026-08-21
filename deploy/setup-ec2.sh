@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# First-Time EC2 Instance Setup Script (Ubuntu 22.04 LTS)
-# Installs Docker, Docker Compose, Git, and clones the repository.
+# First-Time EC2 Instance Setup Script (Ubuntu 26.04 / 24.04 / 22.04 LTS)
+# Installs Docker, Docker Compose, Git, and clones the repository into /home/ubuntu/fileshare
 # Usage: ./setup-ec2.sh [REPO_URL]
 # ==============================================================================
 
 set -euo pipefail
 
-REPO_URL="${1:-https://github.com/your-username/DisfileSys.git}"
-TARGET_DIR="DisfileSys"
+REPO_URL="${1:-https://github.com/sanket-rajput/DistributedFileSystem.git}"
+TARGET_DIR="/home/ubuntu/fileshare"
 
 echo "=== 1. Updating System Packages ==="
 sudo apt-get update -y
@@ -29,7 +29,7 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plug
 echo "=== 3. Adding 'ubuntu' User to Docker Group ==="
 sudo usermod -aG docker ubuntu || true
 
-echo "=== 4. Cloning Repository ==="
+echo "=== 4. Cloning Repository into $TARGET_DIR ==="
 if [ ! -d "$TARGET_DIR" ]; then
     git clone "$REPO_URL" "$TARGET_DIR"
 else
@@ -43,7 +43,7 @@ echo " Setup complete!"
 echo " NEXT STEPS:"
 echo " 1. Log out and back in (or run 'newgrp docker') so group permissions take effect."
 echo " 2. Navigate to repository: cd $TARGET_DIR"
-echo " 3. Create your production .env file: cp .env.example .env"
-echo " 4. Edit .env with your real Render DB credentials and Elastic IP."
+echo " 3. Create production .env file: cp .env.example .env"
+echo " 4. Edit .env with real production secrets (JWT_SECRET, POSTGRES_PASSWORD, etc.)."
 echo " 5. Start containers: docker compose up -d --build"
 echo "=============================================================================="

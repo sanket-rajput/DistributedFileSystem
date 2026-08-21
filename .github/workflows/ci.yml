@@ -1,13 +1,12 @@
-name: Build & Test CI Pipeline
+name: Continuous Integration (CI)
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
 
 jobs:
   build-and-test:
+    name: Build, Test & Validate Docker
     runs-on: ubuntu-latest
 
     steps:
@@ -31,5 +30,8 @@ jobs:
           name: jacoco-coverage-report
           path: target/site/jacoco/
 
-      - name: Verify Multi-Stage Dockerfile Build
-        run: docker build -t distributed-file-sharing:latest .
+      - name: Verify Backend Dockerfile Build
+        run: docker build -t distributed-file-sharing-backend:latest .
+
+      - name: Verify Frontend Dockerfile Build
+        run: docker build -t distributed-file-sharing-frontend:latest ./frontend

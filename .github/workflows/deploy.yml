@@ -1,0 +1,74 @@
+name: Continuous Deployment (CD)
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    name: Deploy to Production EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy & Verify on Production EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            cd /home/ubuntu/fileshare
+
+            if [ ! -d ".git" ]; then
+              echo "Repository not found. Cloning repository..."
+              git clone https://github.com/sanket-rajput/DistributedFileSystem.git .
+            fi
+
+            echo "=== 1. Fetching latest commit and resetting repository ==="
+            git fetch origin main
+            git checkout main
+            git reset --hard ${{ github.sha }}
+
+            DEPLOYED_SHA=$(git rev-parse HEAD)
+
+            if [ "$DEPLOYED_SHA" != "${{ github.sha }}" ]; then
+              echo "ERROR: Deployment SHA mismatch!"
+              echo "Expected: ${{ github.sha }}"
+              echo "Actual:   $DEPLOYED_SHA"
+              exit 1
+            fi
+
+            echo "SHA verified: $DEPLOYED_SHA"
+
+            echo "=== 2. Rebuilding Docker Compose Images ==="
+            docker compose build
+
+            echo "=== 3. Starting Docker Compose Services ==="
+            docker compose up -d
+
+            echo "=== 4. Polling Application Health Check ==="
+            SUCCESS=0
+            for i in $(seq 1 30); do
+              echo "Polling http://localhost:8080/actuator/health (Attempt $i/30)..."
+              HTTP_STATUS=$(curl -s -o /tmp/health.json -w "%{http_code}" http://localhost:8080/actuator/health || true)
+              if [ "$HTTP_STATUS" -eq 200 ] && grep -q '"status":"UP"' /tmp/health.json; then
+                echo "Health check SUCCESSFUL: $(cat /tmp/health.json)"
+                SUCCESS=1
+                break
+              fi
+              sleep 5
+            done
+
+            if [ $SUCCESS -ne 1 ]; then
+              echo "ERROR: Health check failed!"
+              echo "=== Container Status ==="
+              docker compose ps
+              echo "=== App Logs ==="
+              docker compose logs --tail=100 app
+              echo "=== Frontend Logs ==="
+              docker compose logs --tail=100 frontend
+              exit 1
+            fi
+            echo "=== Deployment Completed Successfully ==="

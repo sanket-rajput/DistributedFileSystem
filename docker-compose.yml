@@ -36,6 +36,28 @@ services:
       - certbot_www:/var/www/certbot
       - certbot_certs:/etc/letsencrypt
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: fileshare-postgres
+    restart: always
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fileshare_db}
+      POSTGRES_USER: ${POSTGRES_USER:-fileshare_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fileshare_user} -d ${POSTGRES_DB:-fileshare_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   app:
     build:
       context: .
@@ -45,17 +67,17 @@ services:
     restart: always
 
     ports:
-      - "${SERVER_PORT:-8080}:8080"
+      - "127.0.0.1:${SERVER_PORT:-8080}:8080"
 
     environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
-      POSTGRES_HOST: ${POSTGRES_HOST}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB:-fileshare_db}
+      POSTGRES_USER: ${POSTGRES_USER:-fileshare_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT:-5432}/${POSTGRES_DB}?sslmode=require}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-fileshare_db}}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-fileshare_user}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
@@ -68,6 +90,8 @@ services:
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
 
     depends_on:
+      postgres:
+        condition: service_healthy
       minio:
         condition: service_healthy
       redis:
@@ -95,7 +119,7 @@ services:
 
     ports:
       - "127.0.0.1:${MINIO_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
 
     volumes:
       - minio_data:/data
@@ -157,6 +181,7 @@ services:
       retries: 5
 
 volumes:
+  postgres_data:
   minio_data:
   redis_data:
   kafka_data:

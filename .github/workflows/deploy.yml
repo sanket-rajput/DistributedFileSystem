@@ -21,10 +21,26 @@ jobs:
             set -e
             cd /home/ubuntu/fileshare
 
+            if [ ! -d ".git" ]; then
+              echo "Repository not found. Cloning repository..."
+              git clone https://github.com/sanket-rajput/DistributedFileSystem.git .
+            fi
+
             echo "=== 1. Fetching latest commit and resetting repository ==="
             git fetch origin main
             git checkout main
             git reset --hard ${{ github.sha }}
+
+            DEPLOYED_SHA=$(git rev-parse HEAD)
+
+            if [ "$DEPLOYED_SHA" != "${{ github.sha }}" ]; then
+              echo "ERROR: Deployment SHA mismatch!"
+              echo "Expected: ${{ github.sha }}"
+              echo "Actual:   $DEPLOYED_SHA"
+              exit 1
+            fi
+
+            echo "SHA verified: $DEPLOYED_SHA"
 
             echo "=== 2. Rebuilding Docker Compose Images ==="
             docker compose build

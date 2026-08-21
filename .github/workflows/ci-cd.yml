@@ -1,0 +1,93 @@
+name: Build, Test & Deploy CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    name: Continuous Integration (CI)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21 JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build & Run Unit & Integration Tests (Testcontainers)
+        run: mvn clean verify -B
+
+      - name: Upload JaCoCo Coverage Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jacoco-coverage-report
+          path: target/site/jacoco/
+
+      - name: Verify Backend Dockerfile Build
+        run: docker build -t distributed-file-sharing-backend:latest .
+
+      - name: Verify Frontend Dockerfile Build
+        run: docker build -t distributed-file-sharing-frontend:latest ./frontend
+
+  deploy:
+    name: Continuous Deployment (CD)
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy & Verify on Production EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            cd /home/ubuntu/fileshare
+
+            echo "=== 1. Fetching latest commit and resetting repository ==="
+            git fetch origin main
+            git checkout main
+            git reset --hard ${{ github.sha }}
+
+            echo "=== 2. Rebuilding Docker Compose Images ==="
+            docker compose build
+
+            echo "=== 3. Starting Docker Compose Services ==="
+            docker compose up -d
+
+            echo "=== 4. Polling Application Health Check ==="
+            SUCCESS=0
+            for i in $(seq 1 30); do
+              echo "Polling http://localhost:8080/actuator/health (Attempt $i/30)..."
+              HTTP_STATUS=$(curl -s -o /tmp/health.json -w "%{http_code}" http://localhost:8080/actuator/health || true)
+              if [ "$HTTP_STATUS" -eq 200 ] && grep -q '"status":"UP"' /tmp/health.json; then
+                echo "Health check SUCCESSFUL: $(cat /tmp/health.json)"
+                SUCCESS=1
+                break
+              fi
+              sleep 5
+            done
+
+            if [ $SUCCESS -ne 1 ]; then
+              echo "ERROR: Health check failed!"
+              echo "=== Container Status ==="
+              docker compose ps
+              echo "=== App Logs ==="
+              docker compose logs --tail=100 app
+              echo "=== Frontend Logs ==="
+              docker compose logs --tail=100 frontend
+              exit 1
+            fi
+            echo "=== Deployment Completed Successfully ==="

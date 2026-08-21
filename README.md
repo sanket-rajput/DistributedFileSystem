@@ -1,4 +1,4 @@
-# Distributed File Sharing Platform — Full Stack System
+# Distributed File Sharing Platform : Full Stack System
 
 [![CI/CD Pipeline](https://img.shields.io/badge/CI%2FCD-passing-brightgreen)](.github/workflows/ci.yml)
 [![Java 21](https://img.shields.io/badge/Java-21-blue.svg)](https://www.oracle.com/java/)

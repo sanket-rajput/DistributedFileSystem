@@ -10,6 +10,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Get GitHub Runner Public IP
+        run: echo "RUNNER_IP=$(curl -s https://checkip.amazonaws.com)/32" >> "$GITHUB_ENV"
+
+      - name: Authorize temporary SSH access for GitHub Runner
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          EC2_SECURITY_GROUP_ID: ${{ secrets.EC2_SECURITY_GROUP_ID }}
+        run: |
+          set -e
+          OUTPUT=$(aws ec2 authorize-security-group-ingress \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --protocol tcp \
+            --port 22 \
+            --cidr "$RUNNER_IP" 2>&1) || STATUS=$?
+          if [ "${STATUS:-0}" -ne 0 ] && ! echo "$OUTPUT" | grep -q "InvalidPermission.Duplicate"; then
+            echo "$OUTPUT"
+            exit "${STATUS}"
+          fi
+          echo "Temporary SSH ingress ensured for $RUNNER_IP"
+
       - name: Deploy & Verify on Production EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -72,3 +94,23 @@ jobs:
               exit 1
             fi
             echo "=== Deployment Completed Successfully ==="
+
+      - name: Revoke temporary SSH access for GitHub Runner
+        if: always()
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          EC2_SECURITY_GROUP_ID: ${{ secrets.EC2_SECURITY_GROUP_ID }}
+        run: |
+          set -e
+          OUTPUT=$(aws ec2 revoke-security-group-ingress \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --protocol tcp \
+            --port 22 \
+            --cidr "$RUNNER_IP" 2>&1) || STATUS=$?
+          if [ "${STATUS:-0}" -ne 0 ] && ! echo "$OUTPUT" | grep -q "InvalidPermission.NotFound"; then
+            echo "$OUTPUT"
+            exit "${STATUS}"
+          fi
+          echo "Temporary SSH ingress revoked for $RUNNER_IP"

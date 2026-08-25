@@ -40,6 +40,8 @@ Ensure the following inbound ports are open in AWS EC2 Security Group:
 | **Custom TCP** | `8080` | `0.0.0.0/0` | Direct Spring Boot API & Swagger UI |
 | **Custom TCP** | `9001` | `My IP` | MinIO Web Console (Admin access only) |
 
+For GitHub Actions CD deployments, workflow automation temporarily opens SSH (`22`) only for the active runner public IP and revokes it immediately after deployment.
+
 ---
 
 ## 🔑 One-Time SSL Certificate Issuance (Let's Encrypt)

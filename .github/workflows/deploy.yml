@@ -8,14 +8,47 @@ jobs:
   deploy:
     name: Deploy to Production EC2
     runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      EC2_SECURITY_GROUP_ID: ${{ secrets.EC2_SECURITY_GROUP_ID }}
 
     steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow GitHub Actions runner SSH access
+        id: allow_runner_ssh
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -fsSL https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=${RUNNER_IP}" >> "$GITHUB_OUTPUT"
+
+          set +e
+          AUTHORIZE_OUTPUT=$(aws ec2 authorize-security-group-ingress \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --protocol tcp \
+            --port 22 \
+            --cidr "${RUNNER_IP}/32" 2>&1)
+          STATUS=$?
+          set -e
+
+          if [ "$STATUS" -ne 0 ] && ! echo "$AUTHORIZE_OUTPUT" | grep -q "InvalidPermission.Duplicate"; then
+            echo "$AUTHORIZE_OUTPUT"
+            exit "$STATUS"
+          fi
+
       - name: Deploy & Verify on Production EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          timeout: 2m
+          command_timeout: 20m
           script_stop: true
           script: |
             set -e
@@ -72,3 +105,23 @@ jobs:
               exit 1
             fi
             echo "=== Deployment Completed Successfully ==="
+
+      - name: Revoke GitHub Actions runner SSH access
+        if: ${{ always() && steps.allow_runner_ssh.outputs.runner_ip != '' }}
+        run: |
+          set -euo pipefail
+          RUNNER_IP="${{ steps.allow_runner_ssh.outputs.runner_ip }}"
+
+          set +e
+          REVOKE_OUTPUT=$(aws ec2 revoke-security-group-ingress \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --protocol tcp \
+            --port 22 \
+            --cidr "${RUNNER_IP}/32" 2>&1)
+          STATUS=$?
+          set -e
+
+          if [ "$STATUS" -ne 0 ] && ! echo "$REVOKE_OUTPUT" | grep -q "InvalidPermission.NotFound"; then
+            echo "$REVOKE_OUTPUT"
+            exit "$STATUS"
+          fi

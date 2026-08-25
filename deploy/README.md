@@ -34,13 +34,22 @@ Ensure the following inbound ports are open in AWS EC2 Security Group:
 
 | Type | Port Range | Source | Purpose |
 | :--- | :--- | :--- | :--- |
-| **SSH** | `22` | `My IP` | Secure SSH administration |
+| **SSH** | `22` | `My IP` + GitHub Actions Runner `/32` | Secure SSH administration and CI/CD deployment |
 | **HTTP** | `80` | `0.0.0.0/0` | ACME Challenge Verification & HTTP -> HTTPS Redirect |
 | **HTTPS** | `443` | `0.0.0.0/0` | Secure Web Frontend (`https://fileshare.sanketrajput.live`) |
 | **Custom TCP** | `8080` | `0.0.0.0/0` | Direct Spring Boot API & Swagger UI |
 | **Custom TCP** | `9001` | `My IP` | MinIO Web Console (Admin access only) |
 
 ---
+
+### CI/CD SSH Access Note
+The deployment workflow (`.github/workflows/deploy.yml`) temporarily whitelists the current GitHub Actions runner public IP on port `22` before deployment and revokes it afterward.
+
+Required repository secrets for this automation:
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_REGION`
+- `EC2_SECURITY_GROUP_ID`
 
 ## 🔑 One-Time SSL Certificate Issuance (Let's Encrypt)
 

@@ -48,6 +48,8 @@ The deployment workflow (`.github/workflows/deploy.yml`) temporarily whitelists 
 Required repository secrets for this automation:
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
+
+Required repository variables (or secrets) for this automation:
 - `AWS_REGION`
 - `EC2_SECURITY_GROUP_ID`
 

@@ -8,6 +8,7 @@ jobs:
   deploy:
     name: Deploy to Production EC2
     runs-on: ubuntu-latest
+    environment: production
     env:
       AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION }}
       EC2_SECURITY_GROUP_ID: ${{ vars.EC2_SECURITY_GROUP_ID || secrets.EC2_SECURITY_GROUP_ID }}

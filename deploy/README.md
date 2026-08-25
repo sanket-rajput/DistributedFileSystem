@@ -53,6 +53,8 @@ Required repository variables (or secrets) for this automation:
 - `AWS_REGION`
 - `EC2_SECURITY_GROUP_ID`
 
+If these are configured as **environment-level** variables/secrets, set them in the `production` environment (the deploy job targets `environment: production`).
+
 ## 🔑 One-Time SSL Certificate Issuance (Let's Encrypt)
 
 Before issuing the certificate, ensure DNS A-Record for **`fileshare.sanketrajput.live`** points directly to your EC2 Elastic IP address.
